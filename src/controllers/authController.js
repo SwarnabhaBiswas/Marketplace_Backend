@@ -27,3 +27,13 @@ exports.logout = (req,res) => {
   res.clearCookie('token');
   res.json({ success:true });
 };
+
+exports.me = async (req,res,next) => {
+  try {
+    // req.user is set by authGuard
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    const user = await User.findById(req.user.sub).select('name email role');
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    res.json({ success:true, user });
+  } catch (err) { next(err); }
+};

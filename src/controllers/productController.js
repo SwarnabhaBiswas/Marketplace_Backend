@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const cloudinary = require('../config/cloudinary');
 
 exports.list = async (req,res,next) => {
   try {
@@ -44,7 +45,33 @@ exports.update = async (req,res,next) => {
 exports.remove = async (req,res,next) => {
   try {
     const id = req.params.id;
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ error: 'Not found' });
+    const images = Array.isArray(product.images) ? product.images : [];
+    const publicIds = images.map(img => img.publicId).filter(Boolean);
+    if (publicIds.length) {
+      await Promise.all(publicIds.map(pid => cloudinary.uploader.destroy(pid).catch(() => null)));
+    }
     await Product.findByIdAndDelete(id);
-    res.json({ success:true, success:true });
+    res.json({ success:true });
+  } catch (err) { next(err); }
+};
+
+exports.removeImage = async (req,res,next) => {
+  try {
+    const id = req.params.id;
+    const { publicId } = req.body;
+    if (!publicId) return res.status(400).json({ error: 'publicId required' });
+    const product = await Product.findById(id);
+    if (!product) return res.status(404).json({ error: 'Not found' });
+
+    // destroy image in Cloudinary
+    try { await cloudinary.uploader.destroy(publicId); } catch (e) { /* ignore */ }
+
+    // remove from product doc
+    product.images = (product.images || []).filter(img => img.publicId !== publicId);
+    await product.save();
+
+    res.json({ success:true, data: product });
   } catch (err) { next(err); }
 };
