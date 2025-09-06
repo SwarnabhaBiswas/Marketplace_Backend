@@ -10,10 +10,15 @@ const dealerSchema = new mongoose.Schema({
   pan: String,
   years: String,
   territory: String,
+  enquiryType: { type: String, enum: ['dealer', 'bulk'], default: 'dealer' },
   volumeBand: String,
+  // Address block
   address: String,
-  city: String,
   state: String,
+  district: String,
+  area: String,
+  landmark: String,
+  city: String,
   documents: [{ url: String, publicId: String }],
   message: String,
   status: { type:String, enum:['Pending','Approved','Rejected'], default:'Pending' }
