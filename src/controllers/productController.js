@@ -5,12 +5,25 @@ exports.list = async (req,res,next) => {
   try {
     const { q, category } = req.query;
     const filter = {};
-    if (category) filter.category = category;
+    if (category && category !== 'all') filter.category = category;
     if (q) {
-      filter.$text = { $search: q };
+      const re = new RegExp(String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { name: { $regex: re } },
+        { category: { $regex: re } },
+        { description: { $regex: re } },
+      ];
     }
-    const items = await Product.find(filter).sort({ createdAt: -1 });
-    res.json({ success:true, data: items });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(48, parseInt(req.query.limit, 10) || 11));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Product.countDocuments(filter)
+    ]);
+    const hasMore = skip + items.length < total;
+    res.json({ success:true, data: items, page, total, hasMore });
   } catch (err) { next(err); }
 };
 

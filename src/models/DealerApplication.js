@@ -24,4 +24,10 @@ const dealerSchema = new mongoose.Schema({
   status: { type:String, enum:['Pending','Approved','Rejected'], default:'Pending' }
 },{ timestamps: true });
 
+// Prevent duplicate dealer applications by email, but allow duplicates for bulk enquiries.
+// Partial unique index applies only when enquiryType === 'dealer'.
+try {
+  dealerSchema.index({ email: 1 }, { unique: true, partialFilterExpression: { enquiryType: 'dealer' } });
+} catch {}
+
 module.exports = mongoose.model('DealerApplication', dealerSchema);

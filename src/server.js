@@ -10,6 +10,7 @@ const dealerRoutes = require('./routes/dealers');
 const bulkRoutes = require('./routes/bulk');
 const contactRoutes = require('./routes/contact');
 const uploadRoutes = require('./routes/upload');
+const categoryRoutes = require('./routes/categories');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/dealers', dealerRoutes);
 app.use('/api/bulk', bulkRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/categories', categoryRoutes);
 
 app.use(errorHandler);
 

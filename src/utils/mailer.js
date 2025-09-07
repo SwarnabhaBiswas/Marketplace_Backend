@@ -88,4 +88,80 @@ async function sendBulkNotification(to, data) {
   });
 }
 
-module.exports = { sendDealerNotification, sendBulkNotification, transporter };
+function contactTemplate(data) {
+  const mjml = `
+  <mjml>
+    <mj-body>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="20px" font-weight="700">Swasti — New Contact Message</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section padding="20px">
+        <mj-column>
+          <mj-text font-size="16px" font-weight="600">From: ${data.name}</mj-text>
+          <mj-text>Email: ${data.email} | Phone: ${data.phone || '—'}</mj-text>
+          <mj-text>Message:</mj-text>
+          <mj-text>${data.message || '—'}</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="12px">© ${new Date().getFullYear()} Swasti</mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-body>
+  </mjml>`;
+  return mjml2html(mjml).html;
+}
+
+async function sendContactNotification(to, data) {
+  const html = contactTemplate(data);
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject: `New Contact — ${data.name}`,
+    html
+  });
+}
+
+async function sendDealerStatusEmail(to, data, status, notes) {
+  const subject = status === 'Approved' ? 'Your dealer application has been approved' : 'Your dealer application status update';
+  const msg = status === 'Approved'
+    ? 'We are delighted to inform you that your application has been approved. Our team will contact you with next steps.'
+    : 'We appreciate your interest. At this time, your application was not approved. You may reply to this email for any clarification.';
+  const safeNotes = notes ? `<mj-text font-size="14px"><strong>Notes from team:</strong> ${notes}</mj-text>` : '';
+  const mjml = `
+  <mjml>
+    <mj-body>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="20px" font-weight="700">Swasti — Dealer Application</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section padding="20px">
+        <mj-column>
+          <mj-text font-size="18px" font-weight="700">Hello ${data.contactName || data.companyName || 'Applicant'},</mj-text>
+          <mj-text>${msg}</mj-text>
+          ${safeNotes}
+          <mj-divider />
+          <mj-text font-size="14px">Application reference: ${String(data._id)}</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="12px">© ${new Date().getFullYear()} Swasti</mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-body>
+  </mjml>`;
+  const html = mjml2html(mjml).html;
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject,
+    html,
+  });
+}
+
+module.exports = { sendDealerNotification, sendBulkNotification, sendContactNotification, sendDealerStatusEmail, transporter };
