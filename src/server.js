@@ -19,7 +19,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const allowlist = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173' ||"swastipipes-2ythba4ux-swarnabha-biswas-projects.vercel.app"||"https://swastipipes.vercel.app")
+const allowlist = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
