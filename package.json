@@ -17,6 +17,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^6.6.0",
     "helmet": "^6.0.1",
+    "compression": "^1.7.4",
     "jsonwebtoken": "^9.0.0",
     "mjml": "^4.14.0",
     "mongoose": "^7.0.0",

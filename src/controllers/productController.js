@@ -19,10 +19,11 @@ exports.list = async (req,res,next) => {
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([
-      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Product.countDocuments(filter)
     ]);
     const hasMore = skip + items.length < total;
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({ success:true, data: items, page, total, hasMore });
   } catch (err) { next(err); }
 };
@@ -30,8 +31,9 @@ exports.list = async (req,res,next) => {
 exports.getBySlug = async (req,res,next) => {
   try {
     const slug = req.params.slug;
-    const item = await Product.findOne({ slug });
+    const item = await Product.findOne({ slug }).lean();
     if (!item) return res.status(404).json({ error: 'Not found' });
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({ success:true, data: item });
   } catch (err) { next(err); }
 };

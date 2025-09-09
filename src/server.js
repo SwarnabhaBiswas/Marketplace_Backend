@@ -3,6 +3,7 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const cors = require("cors");
+const compression = require("compression");
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth");
@@ -21,6 +22,7 @@ app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(compression());
 
 // ✅ Build allowlist from ENV
 function normalizeOrigin(url) {
@@ -66,6 +68,12 @@ app.use("/api/bulk", bulkRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/categories", categoryRoutes);
+
+// Lightweight health endpoint (no cache)
+app.get("/api/health", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({ success: true, status: "ok", uptime: Math.round(process.uptime()), timestamp: new Date().toISOString() });
+});
 
 // Error handler
 app.use(errorHandler);

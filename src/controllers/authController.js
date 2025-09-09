@@ -2,6 +2,16 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const prod = process.env.NODE_ENV === 'production';
+const cookieDomain = process.env.COOKIE_DOMAIN || undefined; // e.g. .yourdomain.com
+const cookieBase = {
+  httpOnly: true,
+  secure: prod,
+  sameSite: cookieDomain ? 'lax' : 'none',
+  domain: cookieDomain,
+  path: '/',
+};
+
 exports.login = async (req,res,next) => {
   try {
     const { email, password } = req.body;
@@ -16,19 +26,14 @@ exports.login = async (req,res,next) => {
       { expiresIn: '8h' }
     );
 
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
-      maxAge: 8 * 60 * 60 * 1000 // 8 hours
-    });
+    res.cookie('token', token, { ...cookieBase, maxAge: 8 * 60 * 60 * 1000 });
 
     res.json({ success:true, user: { name: user.name, email: user.email, role: user.role }});
   } catch (err) { next(err); }
 };
 
 exports.logout = (req,res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', cookieBase);
   res.json({ success:true });
 };
 
