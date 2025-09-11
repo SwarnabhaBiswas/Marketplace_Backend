@@ -1,0 +1,27 @@
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping backend health (Render)
+        run: |
+          set -e
+          curl -sS -m 10 -o /dev/null -w "%{http_code}\n" https://marketplace-backend-u8x3.onrender.com/api/health || true
+      - name: Ping frontend (optional)
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        run: |
+          set -e
+          if [ -n "$FRONTEND_URL" ]; then
+            curl -sS -m 10 -o /dev/null -w "%{http_code}\n" "$FRONTEND_URL" || true
+          else
+            echo "FRONTEND_URL repo variable not set; skipping frontend ping.";
+          fi
+
