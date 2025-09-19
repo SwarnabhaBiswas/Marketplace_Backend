@@ -3,13 +3,27 @@ const mjml2html = require('mjml');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
+  },
+  tls:{
+    rejectUnauthorized:false,
   }
 });
+
+transporter.verify((error,success)=>{
+  if(error){
+    console.error("SMTP connection",error);
+  }
+  else{
+    console.error("server ready");
+  }
+}
+
+)
 
 function dealerTemplate(data) {
   const mjml = `
