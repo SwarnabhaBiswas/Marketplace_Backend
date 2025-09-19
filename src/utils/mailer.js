@@ -3,13 +3,27 @@ const mjml2html = require('mjml');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: true,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS
+  },
+  tls:{
+    rejectUnauthorized:false,
   }
 });
+
+transporter.verify((error,success)=>{
+  if(error){
+    console.error("SMTP connection",error);
+  }
+  else{
+    console.error("server ready");
+  }
+}
+
+)
 
 function dealerTemplate(data) {
   const mjml = `
@@ -74,6 +88,53 @@ async function sendDealerNotification(to, data) {
     from: process.env.SMTP_USER,
     to,
     subject: `New Dealer Registration — ${data.companyName}`,
+    html
+  });
+}
+
+// Send notification for dealer or bulk (from DealerApplication collection)
+async function sendDealerOrBulkNotification(to, data) {
+  const isBulk = (data?.enquiryType === 'bulk');
+  const subject = isBulk
+    ? `Bulk Buying Inquiry — ${data.companyName || data.contactName || data.email}`
+    : `New Dealer Registration — ${data.companyName || data.contactName || data.email}`;
+  const html = isBulk
+    ? (() => {
+        const qty = data?.volumeBand ? String(data.volumeBand) : '—';
+        const msg = data?.message ? String(data.message) : '—';
+        const mjml = `
+        <mjml>
+          <mj-body>
+            <mj-section background-color="#0f1724" padding="20px">
+              <mj-column>
+                <mj-text color="#fff" font-size="20px" font-weight="700">Swasti — Bulk Buying Inquiry</mj-text>
+              </mj-column>
+            </mj-section>
+            <mj-section padding="20px">
+              <mj-column>
+                <mj-text font-size="16px"><strong>Name:</strong> ${data.contactName || '—'}</mj-text>
+                <mj-text><strong>Email:</strong> ${data.email || '—'} | <strong>Phone:</strong> ${data.phone || '—'}</mj-text>
+                <mj-text><strong>Company:</strong> ${data.companyName || '—'}</mj-text>
+                <mj-divider />
+                <mj-text font-size="16px"><strong>Quantity:</strong> ${qty}</mj-text>
+                <mj-text><strong>Message:</strong> ${msg}</mj-text>
+              </mj-column>
+            </mj-section>
+            <mj-section background-color="#0f1724" padding="20px">
+              <mj-column>
+                <mj-text color="#fff" font-size="12px">© ${new Date().getFullYear()} Swasti</mj-text>
+              </mj-column>
+            </mj-section>
+          </mj-body>
+        </mjml>`;
+        return mjml2html(mjml).html;
+      })()
+    : dealerTemplate(data);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject,
     html
   });
 }
@@ -164,4 +225,4 @@ async function sendDealerStatusEmail(to, data, status, notes) {
   });
 }
 
-module.exports = { sendDealerNotification, sendBulkNotification, sendContactNotification, sendDealerStatusEmail, transporter };
+module.exports = { sendDealerNotification, sendBulkNotification, sendContactNotification, sendDealerStatusEmail, sendDealerOrBulkNotification, transporter };

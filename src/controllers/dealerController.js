@@ -1,5 +1,5 @@
 const DealerApplication = require('../models/DealerApplication');
-const { sendDealerNotification, sendDealerStatusEmail } = require('../utils/mailer');
+const { sendDealerNotification, sendDealerStatusEmail, sendDealerOrBulkNotification } = require('../utils/mailer');
 
 exports.createDealer = async (req, res, next) => {
   try {
@@ -17,7 +17,7 @@ exports.createDealer = async (req, res, next) => {
 
     const notify = process.env.NOTIFY_EMAIL;
     if (notify) {
-      await sendDealerNotification(notify, saved);
+      await sendDealerOrBulkNotification(notify, saved);
     }
 
     res.status(201).json({ success:true, data: saved });

@@ -2,7 +2,8 @@ const Category = require('../models/Category');
 
 exports.list = async (req, res, next) => {
   try {
-    const items = await Category.find({}).sort({ name: 1 });
+    const items = await Category.find({}).sort({ name: 1 }).lean();
+    res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
     res.json({ success: true, data: items });
   } catch (err) { next(err); }
 };
