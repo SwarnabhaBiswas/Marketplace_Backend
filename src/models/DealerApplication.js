@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+const dealerLocationSchema = new mongoose.Schema(
+  {
+    latitude: Number,
+    longitude: Number,
+    address: String,
+  },
+  { _id: false }
+);
+
 const dealerSchema = new mongoose.Schema({
   companyName: String,
   contactName: String,
@@ -19,6 +28,14 @@ const dealerSchema = new mongoose.Schema({
   area: String,
   landmark: String,
   city: String,
+  pincode: String,
+
+  // Dealer geo location (only for dealer enquiries)
+  dealerLocation: dealerLocationSchema,
+
+  // Requirement field; kept in sync with status for backward compatibility
+  dealerApprovalStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
+
   documents: [{ url: String, publicId: String }],
   message: String,
   status: { type:String, enum:['Pending','Approved','Rejected'], default:'Pending' }

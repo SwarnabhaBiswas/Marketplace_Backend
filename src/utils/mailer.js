@@ -225,4 +225,49 @@ async function sendDealerStatusEmail(to, data, status, notes) {
   });
 }
 
-module.exports = { sendDealerNotification, sendBulkNotification, sendContactNotification, sendDealerStatusEmail, sendDealerOrBulkNotification, transporter };
+async function sendDealerTerminationEmail(to, data) {
+  const mjml = `
+  <mjml>
+    <mj-body>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="20px" font-weight="700">Swasti — Notice of Discontinuation</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section padding="20px">
+        <mj-column>
+          <mj-text font-size="18px" font-weight="700">Hello ${data.contactName || data.companyName || 'Dealer'},</mj-text>
+          <mj-text>
+          This is to inform you that the dealership arrangement will stand discontinued. You are requested to cease representing us in any capacity and to refrain from using any associated name, branding, or materials with immediate effect.
+          </mj-text>
+          <mj-text>
+          Any pending administrative or operational matters, if applicable, may be completed at the earliest.
+          We acknowledge the association and wish you well in your future endeavors.
+          </mj-text>
+          <mj-text>
+          Yours sincerely,
+          </mj-text>
+          <mj-text>
+          Swasti India Pvt. Ltd.
+          </mj-text>
+          <mj-divider />
+          <mj-text font-size="14px">Reference: ${String(data._id)}</mj-text>
+        </mj-column>
+      </mj-section>
+      <mj-section background-color="#0f1724" padding="20px">
+        <mj-column>
+          <mj-text color="#fff" font-size="12px">© ${new Date().getFullYear()} Swasti India Pvt. Ltd.</mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-body>
+  </mjml>`;
+  const html = mjml2html(mjml).html;
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject: 'Dealership Termination Notice',
+    html,
+  });
+}
+
+module.exports = { sendDealerNotification, sendBulkNotification, sendContactNotification, sendDealerStatusEmail, sendDealerOrBulkNotification, sendDealerTerminationEmail, transporter };
