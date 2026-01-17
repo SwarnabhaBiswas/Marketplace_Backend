@@ -4,11 +4,14 @@ const jwt = require('jsonwebtoken');
 
 const prod = process.env.NODE_ENV === 'production';
 const cookieDomain = process.env.COOKIE_DOMAIN || undefined; // e.g. .yourdomain.com
+
+// In local dev (no COOKIE_DOMAIN), use SameSite=Lax so cookies are accepted on http://localhost
+// In production with a real domain, use SameSite=None + Secure for cross-origin frontend/backend if needed.
 const cookieBase = {
   httpOnly: true,
   secure: prod,
-  sameSite: cookieDomain ? 'lax' : 'none',
-  domain: cookieDomain,
+  sameSite: prod ? 'none' : 'lax',
+  domain: prod ? cookieDomain : undefined,
   path: '/',
 };
 
