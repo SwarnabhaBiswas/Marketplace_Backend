@@ -1,5 +1,5 @@
 const DealerApplication = require('../models/DealerApplication');
-const { sendDealerStatusEmail, sendDealerOrBulkNotification } = require('../utils/mailer');
+const { sendDealerStatusEmail, sendDealerOrBulkNotification, sendDealerTerminationEmail } = require('../utils/mailer');
 
 function toOptionalTrimmedString(v) {
   if (v === undefined || v === null) return undefined;
@@ -235,6 +235,29 @@ exports.getNearestApprovedDealers = async (req, res, next) => {
       .slice(0, limit);
 
     res.json({ success: true, data: withDistance });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteDealer = async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const dealer = await DealerApplication.findById(id);
+    if (!dealer) return res.status(404).json({ success: false, message: 'Dealer not found' });
+    if (dealer.status !== 'Approved') {
+      return res.status(400).json({ success: false, message: 'Only approved dealers can be deleted' });
+    }
+    const email = dealer.email;
+    await DealerApplication.findByIdAndDelete(id);
+    if (email) {
+      try {
+        await sendDealerTerminationEmail(email, dealer.toObject ? dealer.toObject() : dealer);
+      } catch (e) {
+        console.error('Dealer termination email failed:', e.message);
+      }
+    }
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
