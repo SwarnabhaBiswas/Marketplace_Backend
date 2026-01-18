@@ -1,14 +1,8 @@
 const BulkInquiry = require('../models/BulkInquiry');
-const { sendBulkNotification } = require('../utils/mailer');
 
 exports.createBulk = async (req, res, next) => {
   try {
     const saved = await BulkInquiry.create(req.body);
-
-    const notify = process.env.NOTIFY_EMAIL;
-    if (notify) {
-      await sendBulkNotification(notify, saved);
-    }
 
     res.status(201).json({ success:true, data: saved });
   } catch (err) { next(err); }

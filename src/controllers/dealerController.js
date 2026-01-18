@@ -1,5 +1,11 @@
-const DealerApplication = require('../models/DealerApplication');
-const { sendDealerStatusEmail, sendDealerOrBulkNotification, sendDealerTerminationEmail } = require('../utils/mailer');
+const DealerApplication = require("../models/DealerApplication");
+const {
+  sendAdminDealerSubmission,
+  sendApplicantStatusEmail,
+  sendApplicantTerminationEmail,
+} = require("../services/email");
+
+/* ===================== HELPERS ===================== */
 
 function toOptionalTrimmedString(v) {
   if (v === undefined || v === null) return undefined;
@@ -8,8 +14,8 @@ function toOptionalTrimmedString(v) {
 }
 
 function coerceNumber(v) {
-  if (v === undefined || v === null || v === '') return undefined;
-  const n = typeof v === 'number' ? v : Number(String(v));
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = typeof v === "number" ? v : Number(String(v));
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -17,8 +23,8 @@ function hasValidCoords(loc) {
   const lat = coerceNumber(loc?.latitude);
   const lng = coerceNumber(loc?.longitude);
   return (
-    typeof lat === 'number' &&
-    typeof lng === 'number' &&
+    typeof lat === "number" &&
+    typeof lng === "number" &&
     lat >= -90 &&
     lat <= 90 &&
     lng >= -180 &&
@@ -26,59 +32,82 @@ function hasValidCoords(loc) {
   );
 }
 
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+/* ===================== CREATE DEALER / BULK ===================== */
+
 exports.createDealer = async (req, res, next) => {
   try {
     const body = req.body || {};
-    const enquiryType = (body.enquiryType || 'dealer') === 'bulk' ? 'bulk' : 'dealer';
+    const enquiryType =
+      body.enquiryType === "bulk" ? "bulk" : "dealer";
 
-    // Dealer requests must include coordinates (so approved dealers can be shown on the map)
-    if (enquiryType === 'dealer') {
+    // Dealer must have coordinates
+    if (enquiryType === "dealer") {
       if (!hasValidCoords(body.dealerLocation)) {
         return res.status(400).json({
           success: false,
-          message: 'Location (latitude/longitude) is required when becoming a dealer.',
+          message:
+            "Location (latitude/longitude) is required when becoming a dealer.",
         });
       }
       body.dealerLocation = {
         latitude: coerceNumber(body.dealerLocation?.latitude),
         longitude: coerceNumber(body.dealerLocation?.longitude),
-        address: toOptionalTrimmedString(body.dealerLocation?.address),
+        address: toOptionalTrimmedString(
+          body.dealerLocation?.address
+        ),
       };
     } else {
       delete body.dealerLocation;
     }
 
-    // Basic sanitization of common string fields
+    // Sanitize strings
     for (const k of [
-      'companyName',
-      'contactName',
-      'email',
-      'phone',
-      'orgType',
-      'gst',
-      'pan',
-      'years',
-      'territory',
-      'volumeBand',
-      'address',
-      'state',
-      'district',
-      'area',
-      'landmark',
-      'city',
-      'pincode',
-      'message',
+      "companyName",
+      "contactName",
+      "email",
+      "phone",
+      "orgType",
+      "gst",
+      "pan",
+      "years",
+      "territory",
+      "volumeBand",
+      "address",
+      "state",
+      "district",
+      "area",
+      "landmark",
+      "city",
+      "pincode",
+      "message",
     ]) {
       if (k in body) body[k] = toOptionalTrimmedString(body[k]);
     }
 
-    // Block duplicate dealer applications by email (allowed for bulk)
-    if (enquiryType === 'dealer' && body.email) {
-      const exists = await DealerApplication.findOne({ email: body.email, enquiryType: 'dealer' });
+    // Block duplicate dealer applications
+    if (enquiryType === "dealer" && body.email) {
+      const exists = await DealerApplication.findOne({
+        email: body.email,
+        enquiryType: "dealer",
+      });
       if (exists) {
         return res.status(409).json({
           success: false,
-          message: 'An application with this email has already been submitted as a dealer.',
+          message:
+            "An application with this email has already been submitted as a dealer.",
         });
       }
     }
@@ -86,38 +115,52 @@ exports.createDealer = async (req, res, next) => {
     const saved = await DealerApplication.create({
       ...body,
       enquiryType,
-      dealerApprovalStatus: 'Pending',
+      dealerApprovalStatus: "Pending",
+      status: "Pending",
     });
 
-    const notify = process.env.NOTIFY_EMAIL;
-    if (notify) {
-      await sendDealerOrBulkNotification(notify, saved);
+    const plain = saved.toObject();
+
+    if (process.env.NOTIFY_EMAIL) {
+      try {
+        await sendAdminDealerSubmission(process.env.NOTIFY_EMAIL, plain);
+      } catch (e) {
+        console.error("❌ Admin email failed:", e);
+      }
     }
 
     res.status(201).json({ success: true, data: saved });
   } catch (err) {
-    // Handle duplicate key error from unique index as a friendly 409
-    if (err && err.code === 11000) {
+    if (err?.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: 'An application with this email has already been submitted as a dealer.',
+        message:
+          "An application with this email has already been submitted.",
       });
     }
     next(err);
   }
 };
 
+/* ===================== GET ALL DEALERS ===================== */
+
 exports.getDealers = async (req, res, next) => {
   try {
     const { status } = req.query;
     const q = {};
     if (status) q.status = status;
-    const items = await DealerApplication.find(q).sort({ createdAt: -1 });
+
+    const items = await DealerApplication.find(q).sort({
+      createdAt: -1,
+    });
+
     res.json({ success: true, data: items });
   } catch (err) {
     next(err);
   }
 };
+
+/* ===================== UPDATE STATUS ===================== */
 
 exports.updateStatus = async (req, res, next) => {
   try {
@@ -125,13 +168,21 @@ exports.updateStatus = async (req, res, next) => {
     const { status, notes } = req.body || {};
 
     const prev = await DealerApplication.findById(id);
-    if (!prev) return res.status(404).json({ success: false, message: 'Application not found' });
+    if (!prev) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Application not found" });
+    }
 
-    // Prevent approving a dealer record that cannot be plotted on the map
-    if (status === 'Approved' && prev.enquiryType === 'dealer' && !hasValidCoords(prev.dealerLocation)) {
+    if (
+      status === "Approved" &&
+      prev.enquiryType === "dealer" &&
+      !hasValidCoords(prev.dealerLocation)
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot approve dealer without a valid location (latitude/longitude).',
+        message:
+          "Cannot approve dealer without valid latitude/longitude.",
       });
     }
 
@@ -141,13 +192,11 @@ exports.updateStatus = async (req, res, next) => {
       { new: true, runValidators: true }
     );
 
-    // If status changed and applicant has an email, notify them (Approved/Rejected only)
-    if (app && prev.status !== status && (status === 'Approved' || status === 'Rejected') && app.email) {
+    if (app && app.email && prev.status !== status && (status === "Approved" || status === "Rejected")) {
       try {
-        await sendDealerStatusEmail(app.email, app.toObject ? app.toObject() : app, status, notes);
+        await sendApplicantStatusEmail(app.email, app.toObject(), status, notes);
       } catch (e) {
-        // Log and continue; do not fail the API due to email issues
-        console.error('Dealer status email failed:', e.message);
+        console.error("❌ Status email failed:", e);
       }
     }
 
@@ -157,11 +206,12 @@ exports.updateStatus = async (req, res, next) => {
   }
 };
 
-// Public: approved dealers for map
+/* ===================== APPROVED DEALERS ===================== */
+
 exports.getApprovedDealers = async (req, res, next) => {
   try {
     const items = await DealerApplication.find(
-      { enquiryType: 'dealer', status: 'Approved' },
+      { enquiryType: "dealer", status: "Approved" },
       {
         companyName: 1,
         contactName: 1,
@@ -181,52 +231,47 @@ exports.getApprovedDealers = async (req, res, next) => {
   }
 };
 
-function haversineKm(aLat, aLng, bLat, bLng) {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const lat1 = toRad(aLat);
-  const lat2 = toRad(bLat);
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
+/* ===================== NEAREST DEALERS ===================== */
 
-// Public: nearest approved dealers, distance-sorted
 exports.getNearestApprovedDealers = async (req, res, next) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 200);
+    const limit = Math.min(
+      Math.max(Number(req.query.limit) || 20, 1),
+      200
+    );
 
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
-      return res.status(400).json({ success: false, message: 'Invalid lat/lng' });
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid lat/lng" });
     }
 
-    const items = await DealerApplication.find(
-      { enquiryType: 'dealer', status: 'Approved' },
-      {
-        companyName: 1,
-        contactName: 1,
-        phone: 1,
-        city: 1,
-        district: 1,
-        state: 1,
-        pincode: 1,
-        dealerLocation: 1,
-        createdAt: 1,
-      }
-    );
+    const items = await DealerApplication.find({
+      enquiryType: "dealer",
+      status: "Approved",
+    });
 
     const withDistance = items
       .map((d) => {
-        const dl = d.dealerLocation || {};
+        const dl = d.dealerLocation;
         if (!hasValidCoords(dl)) return null;
-        const distanceKm = haversineKm(lat, lng, dl.latitude, dl.longitude);
+        const distanceKm = haversineKm(
+          lat,
+          lng,
+          dl.latitude,
+          dl.longitude
+        );
         return {
-          ...(d.toObject ? d.toObject() : d),
+          ...d.toObject(),
           distanceKm: Math.round(distanceKm * 10) / 10,
         };
       })
@@ -240,23 +285,41 @@ exports.getNearestApprovedDealers = async (req, res, next) => {
   }
 };
 
+/* ===================== DELETE / TERMINATE DEALER ===================== */
+
 exports.deleteDealer = async (req, res, next) => {
   try {
-    const id = req.params.id;
-    const dealer = await DealerApplication.findById(id);
-    if (!dealer) return res.status(404).json({ success: false, message: 'Dealer not found' });
-    if (dealer.status !== 'Approved') {
-      return res.status(400).json({ success: false, message: 'Only approved dealers can be deleted' });
+    const dealer = await DealerApplication.findById(req.params.id);
+    if (!dealer) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Dealer not found" });
     }
-    const email = dealer.email;
-    await DealerApplication.findByIdAndDelete(id);
-    if (email) {
+
+    if (dealer.status !== "Approved") {
+      return res.status(400).json({
+        success: false,
+        message: "Only approved dealers can be terminated",
+      });
+    }
+
+    await DealerApplication.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: "Terminated",
+        dealerApprovalStatus: "Terminated",
+      },
+      { new: true }
+    );
+
+    if (dealer.email) {
       try {
-        await sendDealerTerminationEmail(email, dealer.toObject ? dealer.toObject() : dealer);
+        await sendApplicantTerminationEmail(dealer.email, dealer.toObject());
       } catch (e) {
-        console.error('Dealer termination email failed:', e.message);
+        console.error("❌ Termination email failed:", e);
       }
     }
+
     res.json({ success: true });
   } catch (err) {
     next(err);
