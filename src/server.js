@@ -44,6 +44,22 @@ const allowlist = (
 
 console.log("✅ CORS Allowlist:", allowlist);
 
+if (process.env.RESEND_API_KEY) {
+  console.log("✅ RESEND_API_KEY loaded");
+} else {
+  console.error("❌ Missing RESEND_API_KEY");
+}
+if (process.env.RESEND_FROM) {
+  console.log("✅ RESEND_FROM set to:", process.env.RESEND_FROM);
+} else {
+  console.error("❌ Missing RESEND_FROM");
+}
+if (process.env.NOTIFY_EMAIL) {
+  console.log("✅ Admin notifications to:", process.env.NOTIFY_EMAIL);
+} else {
+  console.warn("⚠️ Admin notifications disabled (NOTIFY_EMAIL not set)");
+}
+
 app.use(
   cors({
     origin: (origin, cb) => {

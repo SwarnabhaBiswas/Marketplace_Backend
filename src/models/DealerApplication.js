@@ -34,11 +34,11 @@ const dealerSchema = new mongoose.Schema({
   dealerLocation: dealerLocationSchema,
 
   // Requirement field; kept in sync with status for backward compatibility
-  dealerApprovalStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
+  dealerApprovalStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Terminated'], default: 'Pending' },
 
   documents: [{ url: String, publicId: String }],
   message: String,
-  status: { type:String, enum:['Pending','Approved','Rejected'], default:'Pending' }
+  status: { type:String, enum:['Pending','Approved','Rejected','Terminated'], default:'Pending' }
 },{ timestamps: true });
 
 // Prevent duplicate dealer applications by email, but allow duplicates for bulk enquiries.
